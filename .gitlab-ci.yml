@@ -1,0 +1,60 @@
+stages: 
+  - analyze_code
+  - compiling
+  - build
+  - security
+  - deploy
+
+
+sast_analysis: 
+  stage: analyze_code
+    image: gitlab/sast-cppcheck:latest
+    script: 
+      - echo "Running SAST analysis with cppcheck" 
+      - cppcheck --std=c++11 --quiet --enable=all --inline-suppressions=suppressions.txt . 
+    artifacts:
+      paths: 
+        - cppcheck*.xml
+
+compiling: 
+  stage: compiling
+    script:
+      - make clean
+      - make compile
+    artifacts:
+      path:
+        - chess
+
+
+docker:
+  stage: build
+    image: docker:latest 
+    services:
+      - docker: dind
+    script:
+      - docker login -u DreadnoughtN -p glpat-ND6kxHYxCXUzmqN3PKPy registry.gitlab.com
+      - docker build -t registry.gitlab.com/dreadnoughtn/cns/cpp .
+      - docker push registry.gitlab.com/dreadnoughtn/cns/cpp:latest
+
+
+git_leak:
+  stage: security
+  image:  
+    name: "zricethezav/gitleaks:latest"
+    entrypoint: [""]
+  script:
+    - echo "Running Gitleaks scan"
+    - gitleaks detect --verbose
+  only:
+    - main
+
+deploy: 
+  stage: deploy  
+  image: docker:latest 
+    services:
+      - docker: dind
+  script:
+    - docker login -u DreadnoughtN -p glpat-ND6kxHYxCXUzmqN3PKPy registry.gitlab.com
+    - docker run -it -d --rm registry.gitlab.com/dreadnoughtn/cns/cpp:latest
+  
+  
